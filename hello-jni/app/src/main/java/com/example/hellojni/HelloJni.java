@@ -16,6 +16,8 @@
 package com.example.hellojni;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
+import android.os.AsyncTask;
 import android.widget.TextView;
 import android.widget.Button;
 import android.os.Bundle;
@@ -26,87 +28,100 @@ import android.os.Environment;
 import android.net.Uri;
 import android.content.Context;
 import android.content.Intent;
+
 import dalvik.system.DexClassLoader;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import android.content.res.AssetManager;
 
 public class HelloJni extends Activity
 {
+    private static final String SECONDARY_DEX_NAME = "adcolony.jar";
+
+    // Buffer size for file copying.  While 8kb is used in this sample, you
+    // may want to tweak it based on actual size of the secondary dex file involved.
+    private static final int BUF_SIZE = 8 * 1024;
+
+    private Button mCopyButton = null;
+    private Button mLoadButton = null;
+    private Button mExeButton = null;
+    private DexClassLoader mCL = null;
+    private File mDexInternalStoragePath = null;
+
+    private ProgressDialog mProgressDialog = null;
+
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.main);
 
-        final Button button;
-        button = new Button(this);
-        button.setText("Press me");
-        button.setOnClickListener(new View.OnClickListener() {
+        mCopyButton = (Button) findViewById(R.id.button_copy);
+        mLoadButton = (Button) findViewById(R.id.button_load);
+        mExeButton = (Button) findViewById(R.id.button_exe);
+
+        mCopyButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-
-                try {
-                    System.loadLibrary("hello-mother");
-                    button.setText(stringFromJNI2());
-                } catch (UnsatisfiedLinkError e) {
-                    button.setText("hello-mother not found");
-//                    String url = "url you want to download";
-//                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-//                    request.setDescription("Some descrition");
-//                    request.setTitle("Some title");
-//                    // in order for this if to run, you must use the android 3.2 to compile your app
-//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-//                        request.allowScanningByMediaScanner();
-//                        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-//                    }
-//                    request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "name-of-the-file.ext");
-//
-//                    // get download service and enqueue file
-//                    DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-//                    manager.enqueue(request);
-
-                    final String apkFile = Environment.getExternalStorageDirectory().getAbsolutePath()+"/Download/Offloadme.apk";
-                    String className = "com.khaledalanezi.offloadme.SimpleCalculator";
-                    String methodToInvoke = "add";
-
-                    final File optimizedDexOutputPath = getDir("outdex", 0);
-
-                    DexClassLoader dLoader = new DexClassLoader(apkFile,optimizedDexOutputPath.getAbsolutePath(),
-                            null,ClassLoader.getSystemClassLoader().getParent());
-
-                    try {
-                        Class<?> loadedClass = dLoader.loadClass(className);
-                        Object obj = (Object)loadedClass.newInstance();
-                        int x =5;
-                        int y=6;
-                        Method m = loadedClass.getMethod(methodToInvoke, int.class, int.class);
-                        int z = (Integer) m.invoke(obj, y, x);
-                        System.out.println("The sum of "+x+" and "+"y="+z);
-
-                    } catch (ClassNotFoundException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    } catch (InstantiationException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    } catch (IllegalAccessException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    } catch (NoSuchMethodException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    } catch (IllegalArgumentException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    } catch (InvocationTargetException ee) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }
-                }
+                copyJar();
             }
         });
-        setContentView(button);
+
+        mLoadButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                loadJar();
+            }
+        });
+
+        mExeButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                exeJar();
+            }
+        });
+    }
+
+    public void copyJar()
+    {
+        // Before the secondary dex file can be processed by the DexClassLoader,
+        // it has to be first copied from asset resource to a storage location.
+        mDexInternalStoragePath = new File(getDir("dex", Context.MODE_PRIVATE), SECONDARY_DEX_NAME);
+
+        if (!mDexInternalStoragePath.exists()) {
+            mProgressDialog = ProgressDialog.show(this,
+                    getResources().getString(R.string.diag_title),
+                    getResources().getString(R.string.diag_message), true, false);
+            // Perform the file copying in an AsyncTask.
+            (new PrepareDexTask()).execute(mDexInternalStoragePath);
+        } else {
+//            mToastButton.setEnabled(true);
+        }
+    }
+
+    public void loadJar()
+    {
+        // Internal storage where the DexClassLoader writes the optimized dex file to.
+        final File optimizedDexOutputPath = getDir("outdex", Context.MODE_PRIVATE);
+
+        // Initialize the class loader with the secondary dex file.
+        mCL = new DexClassLoader(mDexInternalStoragePath.getAbsolutePath(),
+                optimizedDexOutputPath.getAbsolutePath(),
+                null,
+                getClassLoader());
+    }
+
+    public void exeJar()
+    {
+        try {
+        } catch (Exception exception) {
+            exception.printStackTrace();
+        }
     }
 
     /* A native method that is implemented by the
@@ -135,5 +150,61 @@ public class HelloJni extends Activity
      */
     static {
         System.loadLibrary("hello-jni");
+    }
+
+    // File I/O code to copy the secondary dex file from asset resource to internal storage.
+    private boolean prepareDex(File dexInternalStoragePath) {
+        BufferedInputStream bis = null;
+        OutputStream dexWriter = null;
+
+        try {
+            bis = new BufferedInputStream(getAssets().open(SECONDARY_DEX_NAME));
+            dexWriter = new BufferedOutputStream(new FileOutputStream(dexInternalStoragePath));
+            byte[] buf = new byte[BUF_SIZE];
+            int len;
+            while((len = bis.read(buf, 0, BUF_SIZE)) > 0) {
+                dexWriter.write(buf, 0, len);
+            }
+            dexWriter.close();
+            bis.close();
+            return true;
+        } catch (IOException e) {
+            if (dexWriter != null) {
+                try {
+                    dexWriter.close();
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                }
+            }
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                }
+            }
+            return false;
+        }
+    }
+
+    private class PrepareDexTask extends AsyncTask<File, Void, Boolean> {
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+            if (mProgressDialog != null) mProgressDialog.cancel();
+        }
+
+        @Override
+        protected void onPostExecute(Boolean result) {
+            super.onPostExecute(result);
+            if (mProgressDialog != null) mProgressDialog.cancel();
+        }
+
+        @Override
+        protected Boolean doInBackground(File... dexInternalStoragePaths) {
+            prepareDex(dexInternalStoragePaths[0]);
+            return null;
+        }
     }
 }

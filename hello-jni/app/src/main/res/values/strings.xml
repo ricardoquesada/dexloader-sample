@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HelloJni</string>
+    <string name="diag_title">Wait</string>
+    <string name="diag_message">Processing dex file...</string>
+    <string name="message">Press \'Load\' to load .jar file. Press \'Execute\' to invoke a method from the .jar</string>
+    <string name="execute">Execute</string>
+    <string name="load">Load</string>
+    <string name="copy">Copy</string>
 </resources>
