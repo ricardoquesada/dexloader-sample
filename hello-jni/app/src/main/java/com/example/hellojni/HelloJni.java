@@ -18,18 +18,14 @@ package com.example.hellojni;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.os.AsyncTask;
-import android.widget.TextView;
-import android.widget.Button;
 import android.os.Bundle;
+import android.widget.Button;
 import android.view.View;
-import android.app.DownloadManager;
-import android.os.Build;
-import android.os.Environment;
-import android.net.Uri;
 import android.content.Context;
-import android.content.Intent;
+import android.util.Log;
 
 import dalvik.system.DexClassLoader;
+import dalvik.system.DexFile;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -38,8 +34,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
-import android.content.res.AssetManager;
+import java.util.Enumeration;
 
 public class HelloJni extends Activity
 {
@@ -52,6 +47,8 @@ public class HelloJni extends Activity
     private Button mCopyButton = null;
     private Button mLoadButton = null;
     private Button mExeButton = null;
+    private Button mEnumerateButton = null;
+
     private DexClassLoader mCL = null;
     private File mDexInternalStoragePath = null;
 
@@ -67,10 +64,17 @@ public class HelloJni extends Activity
         mCopyButton = (Button) findViewById(R.id.button_copy);
         mLoadButton = (Button) findViewById(R.id.button_load);
         mExeButton = (Button) findViewById(R.id.button_exe);
+        mEnumerateButton = (Button) findViewById(R.id.button_enumerate);
 
         mCopyButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 copyJar();
+            }
+        });
+
+        mEnumerateButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                enumerateFiles();
             }
         });
 
@@ -104,8 +108,7 @@ public class HelloJni extends Activity
         }
     }
 
-    public void loadJar()
-    {
+    public void loadJar() {
         // Internal storage where the DexClassLoader writes the optimized dex file to.
         final File optimizedDexOutputPath = getDir("outdex", Context.MODE_PRIVATE);
 
@@ -116,41 +119,46 @@ public class HelloJni extends Activity
                 getClassLoader());
     }
 
-    public void exeJar()
-    {
+    public void enumerateFiles() {
+        String path = mDexInternalStoragePath.getAbsolutePath();
         try {
-        } catch (Exception exception) {
-            exception.printStackTrace();
+            DexFile dx = DexFile.loadDex(path,
+                    File.createTempFile("opt", "dex", getCacheDir()).getPath(),
+                    0);
+
+            // Print all classes in the DexFile
+            for (Enumeration<String> classNames = dx.entries(); classNames.hasMoreElements(); ) {
+                String className = classNames.nextElement();
+                System.out.println("class: " + className);
+            }
+        } catch (IOException e) {
+            Log.w("Hi", "Error opening " + path, e);
         }
     }
 
-    /* A native method that is implemented by the
-     * 'hello-jni' native library, which is packaged
-     * with this application.
-     */
-    public native String  stringFromJNI();
-    public native String  stringFromJNI2();
+    public void exeJar()
+    {
+        Class clazz = null;
+        String class_str = "com.jirbo.adcolony.AdColony";
+        try {
+            Class<?> classToLoad = mCL.loadClass(class_str);
 
-    /* This is another native method declaration that is *not*
-     * implemented by 'hello-jni'. This is simply to show that
-     * you can declare as many native methods in your Java code
-     * as you want, their implementation is searched in the
-     * currently loaded native libraries only the first time
-     * you call them.
-     *
-     * Trying to call this function will result in a
-     * java.lang.UnsatisfiedLinkError exception !
-     */
-    public native String  unimplementedStringFromJNI();
+            Method[] array = classToLoad.getMethods();
+            for (int i=0; i<array.length; i++)
+            {
+                Method m = array[i];
+                Log.i("Testing", m.getName());
+            }
+//            Method method = classToLoad.getMethod("configure", )
+//            efi = (EffectsInterface) clazz.newInstance();
+//            AdColony.configure(this, "version:2.1,store:google", "app185a7e71e1714831a49ec7", "ads");
 
-    /* this is used to load the 'hello-jni' library on application
-     * startup. The library has already been unpacked into
-     * /data/data/com.example.hellojni/lib/libhello-jni.so at
-     * installation time by the package manager.
-     */
-    static {
-        System.loadLibrary("hello-jni");
+        } catch (Exception e) {
+            Log.w("Hi", "Error loading class " + class_str, e);
+            e.printStackTrace();
+        }
     }
+
 
     // File I/O code to copy the secondary dex file from asset resource to internal storage.
     private boolean prepareDex(File dexInternalStoragePath) {

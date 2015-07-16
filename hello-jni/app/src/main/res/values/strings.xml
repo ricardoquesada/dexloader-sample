@@ -7,4 +7,5 @@
     <string name="execute">Execute</string>
     <string name="load">Load</string>
     <string name="copy">Copy</string>
+    <string name="enumerate">Enumerate</string>
 </resources>

@@ -32,6 +32,12 @@
     <Button
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:text="@string/enumerate"
+        android:id="@+id/button_enumerate" />
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:text="@string/load"
         android:id="@+id/button_load" />
 
