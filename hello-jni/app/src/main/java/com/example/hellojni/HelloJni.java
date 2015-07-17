@@ -35,20 +35,19 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.Enumeration;
+import java.lang.reflect.Field;
 
 public class HelloJni extends Activity
 {
-    private static final String SECONDARY_DEX_NAME = "sdkbox-dex.apk";
-    private static final String CLASS_TO_LOAD = "com.sdkbox.plugin.SDKBox";
+    private static final String SECONDARY_DEX_NAME = "adcolony-dex.jar";
+    private static final String CLASS_TO_LOAD = "com.jirbo.adcolony.AdColony";
+
+    public static ClassLoader ORIGINAL_LOADER;
+    public static ClassLoader CUSTOM_LOADER = null;
 
     // Buffer size for file copying.  While 8kb is used in this sample, you
     // may want to tweak it based on actual size of the secondary dex file involved.
     private static final int BUF_SIZE = 8 * 1024;
-
-    private Button mCopyButton = null;
-    private Button mLoadButton = null;
-    private Button mExeButton = null;
-    private Button mEnumerateButton = null;
 
     private DexClassLoader mCL = null;
     private File mDexInternalStoragePath = null;
@@ -62,34 +61,103 @@ public class HelloJni extends Activity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
 
-        mCopyButton = (Button) findViewById(R.id.button_copy);
-        mLoadButton = (Button) findViewById(R.id.button_load);
-        mExeButton = (Button) findViewById(R.id.button_exe);
-        mEnumerateButton = (Button) findViewById(R.id.button_enumerate);
+        Button copyButton = (Button) findViewById(R.id.button_copy);
+        Button loadButton = (Button) findViewById(R.id.button_load);
+        Button exeButton = (Button) findViewById(R.id.button_exe);
+        Button enumerateButton = (Button) findViewById(R.id.button_enumerate);
+        Button adsButton = (Button) findViewById(R.id.button_ads);
 
-        mCopyButton.setOnClickListener(new View.OnClickListener() {
+        copyButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 copyJar();
             }
         });
 
-        mEnumerateButton.setOnClickListener(new View.OnClickListener() {
+        enumerateButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 enumerateFiles();
             }
         });
 
-        mLoadButton.setOnClickListener(new View.OnClickListener() {
+        loadButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 loadJar();
             }
         });
 
-        mExeButton.setOnClickListener(new View.OnClickListener() {
+        exeButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
                 exeJar();
             }
         });
+
+        adsButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                displayAds();
+            }
+        });
+
+    }
+
+    public void changeClassLoader() {
+        try {
+            Context mBase = new Smith<Context>(this, "mBase").get();
+
+            Object mPackageInfo = new Smith<Object>(mBase, "mPackageInfo").get();
+
+            //get Application classLoader
+            Smith<ClassLoader> sClassLoader = new Smith<ClassLoader>(mPackageInfo, "mClassLoader");
+
+            ClassLoader mClassLoader = sClassLoader.get();
+            ORIGINAL_LOADER = mClassLoader;
+
+            CUSTOM_LOADER = mCL;
+
+            MyClassLoader cl = new MyClassLoader(mClassLoader);
+            //chage current classLoader to MyClassLoader
+            sClassLoader.set(cl);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void restoreClassLoader() {
+        try {
+            Context mBase = new Smith<Context>(this, "mBase").get();
+
+            Object mPackageInfo = new Smith<Object>(mBase, "mPackageInfo").get();
+
+            //get Application classLoader
+            Smith<ClassLoader> sClassLoader = new Smith<ClassLoader>(mPackageInfo, "mClassLoader");
+
+            //chage current classLoader to MyClassLoader
+            sClassLoader.set(ORIGINAL_LOADER);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    class MyClassLoader extends ClassLoader {
+        public MyClassLoader(ClassLoader parent) {
+            super(parent);
+        }
+
+        @Override
+        public Class<?> loadClass(String className)
+                throws ClassNotFoundException {
+            if (CUSTOM_LOADER != null) {
+                if (className.startsWith("com.jirbo.")) {
+                    Log.i("classloader", "loadClass( " + className + " )");
+                }
+                try {
+                    Class<?> c = CUSTOM_LOADER.loadClass(className);
+                    if (c != null)
+                        return c;
+                } catch (ClassNotFoundException e) {
+                }
+            }
+            return super.loadClass(className);
+        }
     }
 
     public void copyJar()
@@ -118,6 +186,8 @@ public class HelloJni extends Activity
                 optimizedDexOutputPath.getAbsolutePath(),
                 null,
                 getClassLoader());
+
+        CUSTOM_LOADER = mCL;
     }
 
     public void enumerateFiles() {
@@ -139,24 +209,44 @@ public class HelloJni extends Activity
 
     public void exeJar()
     {
-        Class clazz = null;
         try {
-            Class<?> classToLoad = mCL.loadClass(CLASS_TO_LOAD);
-
-            Method[] array = classToLoad.getMethods();
-            for (int i=0; i<array.length; i++)
-            {
-                Method m = array[i];
-                Log.i("Testing", m.getName());
-            }
-//            Method method = classToLoad.getMethod("configure", )
-//            efi = (EffectsInterface) clazz.newInstance();
-//            AdColony.configure(this, "version:2.1,store:google", "app185a7e71e1714831a49ec7", "ads");
+            Class<?> classAdColony = mCL.loadClass(CLASS_TO_LOAD);
+            // Initialize
+            Method methodConfigure = classAdColony.getMethod("configure", new Class[]{Activity.class, String.class, String.class, String[].class});
+            // null since it is an static method
+            methodConfigure.invoke(null, this, "version:1.0,store:google", "app185a7e71e1714831a49ec7", new String[]{"vz06e8c32a037749699e7050"});
 
         } catch (Exception e) {
             Log.w("Hi", "Error loading class " + CLASS_TO_LOAD, e);
             e.printStackTrace();
         }
+    }
+
+    public void displayAds()
+    {
+
+        try {
+            // Display Video Ad
+            Class<?> classAdColonyVideoAd = mCL.loadClass("com.jirbo.adcolony.AdColonyVideoAd");
+            Method methodShow = classAdColonyVideoAd.getMethod("show");
+
+            // show
+            Object instance = classAdColonyVideoAd.newInstance();
+
+            // change it
+            changeClassLoader();
+
+            // null since it is an static method
+            methodShow.invoke(instance);
+
+            // restore it
+//            restoreClassLoader();
+
+        } catch (Exception e) {
+            Log.w("Hi", "Error loading class com.jirbo.adcolony.AdColonyVideoAd", e);
+            e.printStackTrace();
+        }
+
     }
 
 
@@ -216,3 +306,4 @@ public class HelloJni extends Activity
         }
     }
 }
+

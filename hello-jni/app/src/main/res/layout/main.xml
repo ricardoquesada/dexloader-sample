@@ -47,4 +47,10 @@
         android:text="@string/execute"
         android:id="@+id/button_exe" />
 
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Display Ads"
+        android:id="@+id/button_ads" />
+
 </LinearLayout>
