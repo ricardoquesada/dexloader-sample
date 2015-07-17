@@ -38,7 +38,8 @@ import java.util.Enumeration;
 
 public class HelloJni extends Activity
 {
-    private static final String SECONDARY_DEX_NAME = "adcolony.jar";
+    private static final String SECONDARY_DEX_NAME = "sdkbox-dex.apk";
+    private static final String CLASS_TO_LOAD = "com.sdkbox.plugin.SDKBox";
 
     // Buffer size for file copying.  While 8kb is used in this sample, you
     // may want to tweak it based on actual size of the secondary dex file involved.
@@ -139,9 +140,8 @@ public class HelloJni extends Activity
     public void exeJar()
     {
         Class clazz = null;
-        String class_str = "com.jirbo.adcolony.AdColony";
         try {
-            Class<?> classToLoad = mCL.loadClass(class_str);
+            Class<?> classToLoad = mCL.loadClass(CLASS_TO_LOAD);
 
             Method[] array = classToLoad.getMethods();
             for (int i=0; i<array.length; i++)
@@ -154,7 +154,7 @@ public class HelloJni extends Activity
 //            AdColony.configure(this, "version:2.1,store:google", "app185a7e71e1714831a49ec7", "ads");
 
         } catch (Exception e) {
-            Log.w("Hi", "Error loading class " + class_str, e);
+            Log.w("Hi", "Error loading class " + CLASS_TO_LOAD, e);
             e.printStackTrace();
         }
     }
